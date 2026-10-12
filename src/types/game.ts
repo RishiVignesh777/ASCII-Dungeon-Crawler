@@ -1,90 +1,124 @@
-export type TileType = '#' | '.' | '+' | '$' | 'M' | '^' | '@';
+export type TileType =
+  | '#'
+  | '.'
+  | '~'
+  | '+'
+  | '/'
+  | '>'
+  | '$'
+  | 'P'
+  | 'K'
+  | 'W'
+  | 'A'
+  | '?'
+  | 'g'
+  | 'S'
+  | 'O'
+  | 'D'
+  | '@';
+
+export type MonsterType = 'g' | 'S' | 'O' | 'D';
 
 export interface Monster {
   id: string;
   name: string;
-  symbol: 'M';
+  type: MonsterType;
+  symbol: MonsterType;
   x: number;
   y: number;
   hp: number;
   maxHp: number;
   atk: number;
   def: number;
-  xp: number;
+  exp: number;
   gold: number;
   alive: boolean;
   flavor: string;
 }
 
-export interface Chest {
+export interface GroundItem {
   id: string;
   x: number;
   y: number;
-  opened: boolean;
-  gold: number;
-  item?: string;
-  weapon?: {
-    name: string;
-    atk: number;
-  };
-  description: string;
-}
-
-export interface Trap {
-  id: string;
-  x: number;
-  y: number;
+  type: '$' | 'P' | 'K' | 'W' | 'A' | '?';
   name: string;
-  damage: number;
-  disarmed: boolean;
-  triggered: boolean;
+  value?: number; // gold amount, heal amount, bonus
+  weaponData?: { name: string; damage: number };
+  armorData?: { name: string; defense: number };
+  description: string;
 }
 
 export interface Door {
   id: string;
   x: number;
   y: number;
-  locked: boolean;
-  keyRequired?: string;
+  isOpen: boolean; // if true, '/' else '+'
+  requiresKey: boolean;
   name: string;
 }
 
 export interface PlayerStats {
   hp: number;
   maxHp: number;
-  gold: number;
+  mp: number;
+  maxMp: number;
+  level: number;
+  exp: number;
+  maxExp: number;
   weapon: {
     name: string;
-    atkBonus: number;
+    damage: number;
   };
-  inventory: string[];
+  armor: {
+    name: string;
+    defense: number;
+  };
+  gold: number;
+  keys: number;
+  potions: number;
+  keyItems: string[];
 }
 
 export interface GameTurn {
   turnNumber: number;
-  mapAscii: string;
+  floor: number;
+  mapAscii: string; // 20x20
   statusBoard: {
-    hp: string;
-    gold: number;
-    weapon: string;
-    inventory: string[];
+    location: string;
+    stats: string;
+    gear: string;
+    bag: string;
+    // Raw numeric values for rich UI rendering
+    raw: {
+      hp: number;
+      maxHp: number;
+      mp: number;
+      maxMp: number;
+      level: number;
+      exp: number;
+      maxExp: number;
+      weapon: { name: string; damage: number };
+      armor: { name: string; defense: number };
+      gold: number;
+      keys: number;
+      potions: number;
+      keyItems: string[];
+    };
   };
-  sceneDescription: string;
-  actions: string[];
-  combatEvent?: string;
+  sceneAndCombatLog: string;
+  availableActions: string[];
   actionTaken?: string;
   timestamp: number;
 }
 
-export interface DungeonLevel {
-  id: number;
-  title: string;
-  startDescription: string;
-  baseGrid: string[]; // 12 strings of length 12
+export interface FloorData {
+  floorNumber: number;
+  name: string;
+  themeDescription: string;
+  baseGrid: string[]; // 20 rows of length 20
   playerStart: { x: number; y: number };
-  exitPos?: { x: number; y: number };
+  stairsPos: { x: number; y: number };
   monsters: Monster[];
-  chests: Chest[];
-  traps: Trap[];
+  items: GroundItem[];
   doors: Door[];
 }

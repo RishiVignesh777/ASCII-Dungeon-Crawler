@@ -1,125 +1,154 @@
 import React from 'react';
-import { Heart, Coins, Sword, Backpack } from 'lucide-react';
+import { Heart, Sparkles, Shield, Sword, Coins, Key, Flame } from 'lucide-react';
 
 interface StatusBoardProps {
-  hpText: string;
-  gold: number;
-  weapon: string;
-  inventory: string[];
-  onUseItem?: (item: string) => void;
+  location: string;
+  statsText: string;
+  gearText: string;
+  bagText: string;
+  raw: {
+    hp: number;
+    maxHp: number;
+    mp: number;
+    maxMp: number;
+    level: number;
+    exp: number;
+    maxExp: number;
+    weapon: { name: string; damage: number };
+    armor: { name: string; defense: number };
+    gold: number;
+    keys: number;
+    potions: number;
+    keyItems: string[];
+  };
+  onUsePotion?: () => void;
 }
 
 export const StatusBoard: React.FC<StatusBoardProps> = ({
-  hpText,
-  gold,
-  weapon,
-  inventory,
-  onUseItem,
+  location,
+  statsText,
+  gearText,
+  bagText,
+  raw,
+  onUsePotion,
 }) => {
-  // Parse HP e.g. "20/24"
-  const [currentHp, maxHp] = hpText.split('/').map(Number);
-  const hpRatio = maxHp > 0 ? Math.max(0, Math.min(100, (currentHp / maxHp) * 100)) : 0;
+  const hpRatio = raw.maxHp > 0 ? Math.max(0, Math.min(100, (raw.hp / raw.maxHp) * 100)) : 0;
+  const mpRatio = raw.maxMp > 0 ? Math.max(0, Math.min(100, (raw.mp / raw.maxMp) * 100)) : 0;
+  const expRatio = raw.maxExp > 0 ? Math.max(0, Math.min(100, (raw.exp / raw.maxExp) * 100)) : 0;
 
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-950/80 p-4 font-mono shadow-md backdrop-blur-sm">
+    <div className="rounded-xl border border-neutral-800 bg-neutral-950/90 p-4 font-mono shadow-md">
       <div className="flex items-center justify-between border-b border-neutral-800 pb-2 mb-3 text-xs tracking-wider uppercase font-semibold text-neutral-400">
         <span className="flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-          2. STATUS BOARD
+          2. STATUS & INVENTORY BOARD
         </span>
-        <span className="text-neutral-500 font-mono text-[11px]">ACTIVE STATS</span>
+        <span className="text-emerald-400 font-bold bg-emerald-950/70 border border-emerald-800/80 px-2 py-0.5 rounded text-[11px]">
+          {location}
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {/* HP */}
-        <div className="bg-neutral-900/80 border border-neutral-800/80 rounded-lg p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="flex items-center gap-1.5 text-xs text-neutral-400">
-              <Heart className="w-4 h-4 text-rose-500 fill-rose-500/30" />
-              Player HP
+      {/* Structured Text representation */}
+      <div className="bg-black/70 rounded-lg p-3 border border-neutral-800/80 text-xs text-neutral-300 space-y-1 mb-3">
+        <div>
+          <span className="text-neutral-400">- Location:</span> [{location}]
+        </div>
+        <div>
+          <span className="text-neutral-400">- Stats:</span> {statsText}
+        </div>
+        <div>
+          <span className="text-neutral-400">- Gear:</span> {gearText}
+        </div>
+        <div>
+          <span className="text-neutral-400">- Bag:</span> {bagText}
+        </div>
+      </div>
+
+      {/* Visual Status Meters */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+        {/* HP Meter */}
+        <div className="bg-neutral-900/80 p-2.5 rounded-lg border border-neutral-800">
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className="flex items-center gap-1 text-rose-400 font-semibold">
+              <Heart className="w-3.5 h-3.5 fill-rose-500/20" /> HP
             </span>
-            <span className="font-bold text-rose-300 text-sm">
-              [{hpText}]
+            <span className="text-rose-300 font-bold">
+              {raw.hp}/{raw.maxHp}
             </span>
           </div>
-          <div className="w-full bg-neutral-800 rounded-full h-2 overflow-hidden border border-neutral-700/50">
+          <div className="w-full bg-neutral-800 h-1.5 rounded-full overflow-hidden">
             <div
               className={`h-full transition-all duration-300 ${
-                hpRatio > 50
-                  ? 'bg-rose-500'
-                  : hpRatio > 25
-                  ? 'bg-amber-500'
-                  : 'bg-red-600 animate-pulse'
+                hpRatio > 40 ? 'bg-rose-500' : 'bg-red-600 animate-pulse'
               }`}
               style={{ width: `${hpRatio}%` }}
             />
           </div>
         </div>
 
-        {/* Gold */}
-        <div className="bg-neutral-900/80 border border-neutral-800/80 rounded-lg p-3">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-xs text-neutral-400">
-              <Coins className="w-4 h-4 text-yellow-400" />
-              Gold
+        {/* MP Meter */}
+        <div className="bg-neutral-900/80 p-2.5 rounded-lg border border-neutral-800">
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className="flex items-center gap-1 text-sky-400 font-semibold">
+              <Sparkles className="w-3.5 h-3.5" /> MP
             </span>
-            <span className="font-bold text-yellow-300 text-sm">
-              [{gold}]
+            <span className="text-sky-300 font-bold">
+              {raw.mp}/{raw.maxMp}
             </span>
           </div>
-          <p className="text-[11px] text-neutral-500 mt-1">Dungeon coin pouch</p>
+          <div className="w-full bg-neutral-800 h-1.5 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-sky-500 transition-all duration-300"
+              style={{ width: `${mpRatio}%` }}
+            />
+          </div>
         </div>
 
-        {/* Weapon */}
-        <div className="bg-neutral-900/80 border border-neutral-800/80 rounded-lg p-3">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-xs text-neutral-400">
-              <Sword className="w-4 h-4 text-cyan-400" />
-              Weapon
+        {/* EXP Meter */}
+        <div className="bg-neutral-900/80 p-2.5 rounded-lg border border-neutral-800">
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className="flex items-center gap-1 text-amber-400 font-semibold">
+              <Flame className="w-3.5 h-3.5" /> Lvl {raw.level}
             </span>
-            <span className="font-semibold text-cyan-300 text-xs text-right truncate max-w-[160px]" title={weapon}>
-              [{weapon}]
+            <span className="text-amber-300 font-bold">
+              {raw.exp}/{raw.maxExp} XP
             </span>
           </div>
-          <p className="text-[11px] text-neutral-500 mt-1">Equipped armament</p>
+          <div className="w-full bg-neutral-800 h-1.5 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-amber-500 transition-all duration-300"
+              style={{ width: `${expRatio}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Bag / Gear Badges */}
+      <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2.5 border-t border-neutral-800/80 text-xs">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1 text-yellow-400">
+            <Coins className="w-3.5 h-3.5" /> {raw.gold} Gold
+          </span>
+          <span className="flex items-center gap-1 text-amber-300">
+            <Key className="w-3.5 h-3.5" /> {raw.keys} Keys
+          </span>
+          <span className="flex items-center gap-1 text-cyan-400">
+            <Sword className="w-3.5 h-3.5" /> +{raw.weapon.damage} ATK
+          </span>
+          <span className="flex items-center gap-1 text-indigo-400">
+            <Shield className="w-3.5 h-3.5" /> +{raw.armor.defense} DEF
+          </span>
         </div>
 
-        {/* Inventory */}
-        <div className="bg-neutral-900/80 border border-neutral-800/80 rounded-lg p-3">
-          <div className="flex items-center justify-between mb-1">
-            <span className="flex items-center gap-1.5 text-xs text-neutral-400">
-              <Backpack className="w-4 h-4 text-emerald-400" />
-              Inventory
-            </span>
-            <span className="text-[11px] text-neutral-500">
-              {inventory.length} item{inventory.length === 1 ? '' : 's'}
-            </span>
-          </div>
-          {inventory.length === 0 ? (
-            <span className="text-xs text-neutral-600 italic">[Empty]</span>
-          ) : (
-            <div className="flex flex-wrap gap-1.5 mt-1 max-h-16 overflow-y-auto pr-1">
-              {inventory.map((item, idx) => {
-                const isPotion = item.toLowerCase().includes('potion');
-                return (
-                  <button
-                    key={`${item}-${idx}`}
-                    type="button"
-                    onClick={() => isPotion && onUseItem && onUseItem(item)}
-                    title={isPotion ? 'Click to drink' : item}
-                    className={`text-[11px] px-2 py-0.5 rounded border transition-colors ${
-                      isPotion
-                        ? 'bg-rose-950/40 border-rose-800/60 text-rose-300 hover:bg-rose-900/60 cursor-pointer'
-                        : 'bg-neutral-800/60 border-neutral-700/60 text-neutral-300 cursor-default'
-                    }`}
-                  >
-                    {item} {isPotion && '🧪'}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        {raw.potions > 0 && onUsePotion && (
+          <button
+            type="button"
+            onClick={onUsePotion}
+            className="flex items-center gap-1 text-xs px-2.5 py-1 bg-rose-950/60 hover:bg-rose-900/80 border border-rose-700/60 text-rose-300 rounded transition-colors cursor-pointer"
+          >
+            🧪 Drink Potion ({raw.potions})
+          </button>
+        )}
       </div>
     </div>
   );

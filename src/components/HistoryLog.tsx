@@ -1,7 +1,7 @@
 import React from 'react';
 import { GameTurn } from '../types/game';
 import { History, Copy, Check } from 'lucide-react';
-import { formatTurnAsMarkdown } from '../game/gameEngine';
+import { formatTurnOutput } from '../game/gameEngine';
 
 interface HistoryLogProps {
   turns: GameTurn[];
@@ -11,7 +11,7 @@ export const HistoryLog: React.FC<HistoryLogProps> = ({ turns }) => {
   const [copiedIndex, setCopiedIndex] = React.useState<number | null>(null);
 
   const handleCopy = (turn: GameTurn, idx: number) => {
-    const text = formatTurnAsMarkdown(turn);
+    const text = formatTurnOutput(turn);
     navigator.clipboard.writeText(text);
     setCopiedIndex(idx);
     setTimeout(() => setCopiedIndex(null), 2000);
@@ -41,11 +41,11 @@ export const HistoryLog: React.FC<HistoryLogProps> = ({ turns }) => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-emerald-400">
-                      Turn #{turn.turnNumber}
+                      Turn #{turn.turnNumber} (Floor {turn.floor})
                     </span>
                     {turn.actionTaken && (
-                      <span className="text-neutral-400 bg-neutral-800/80 px-1.5 py-0.5 rounded text-[10px]">
-                        Action: {turn.actionTaken}
+                      <span className="text-neutral-400 bg-neutral-800/80 px-1.5 py-0.5 rounded text-[10px] truncate max-w-[180px]">
+                        {turn.actionTaken}
                       </span>
                     )}
                   </div>
@@ -66,13 +66,8 @@ export const HistoryLog: React.FC<HistoryLogProps> = ({ turns }) => {
                   </button>
                 </div>
                 <p className="text-neutral-300 italic text-[11px] leading-relaxed line-clamp-2">
-                  &quot;{turn.sceneDescription}&quot;
+                  &quot;{turn.sceneAndCombatLog}&quot;
                 </p>
-                {turn.combatEvent && (
-                  <p className="text-amber-300/90 text-[11px]">
-                    ⚔️ {turn.combatEvent}
-                  </p>
-                )}
               </div>
             );
           })}

@@ -3,14 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   createInitialGameState,
-  executePlayerAction,
+  executeTurnAction,
   GameState,
-  formatTurnAsMarkdown,
+  formatTurnOutput,
 } from './game/gameEngine';
-import { DUNGEON_LEVELS } from './game/dungeonLevels';
 import { AsciiMap } from './components/AsciiMap';
 import { StatusBoard } from './components/StatusBoard';
 import { TurnDisplay } from './components/TurnDisplay';
@@ -34,17 +33,12 @@ export default function App() {
   const [copiedLatest, setCopiedLatest] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
-  const currentLevel = useMemo(
-    () => DUNGEON_LEVELS[gameState.levelIndex] || DUNGEON_LEVELS[0],
-    [gameState.levelIndex]
-  );
-
   const latestTurn = gameState.turns[gameState.turns.length - 1];
 
   // Action dispatcher
   const handleExecuteAction = useCallback((actionText: string) => {
     setGameState((prev) => {
-      const { newState, soundType } = executePlayerAction(prev, actionText);
+      const { newState, soundType } = executeTurnAction(prev, actionText);
       if (soundType && soundFx[soundType]) {
         soundFx[soundType]();
       }
@@ -52,7 +46,7 @@ export default function App() {
     });
   }, []);
 
-  // Adjacent tile click movement/interaction
+  // Adjacent tile click movement
   const handleTileClick = useCallback(
     (x: number, y: number) => {
       const px = gameState.playerPos.x;
@@ -60,7 +54,6 @@ export default function App() {
       const dx = x - px;
       const dy = y - py;
 
-      // Only respond to adjacent clicks
       if (Math.abs(dx) + Math.abs(dy) === 1) {
         if (dx === 1) handleExecuteAction('East');
         else if (dx === -1) handleExecuteAction('West');
@@ -77,20 +70,15 @@ export default function App() {
     setGameState(createInitialGameState());
   }, []);
 
-  // Use Item
-  const handleUseItem = useCallback(
-    (item: string) => {
-      if (item.toLowerCase().includes('potion')) {
-        handleExecuteAction('Drink Healing Potion');
-      }
-    },
-    [handleExecuteAction]
-  );
+  // Use Potion shortcut
+  const handleUsePotion = useCallback(() => {
+    handleExecuteAction('Use Health/Mana Potion');
+  }, [handleExecuteAction]);
 
   // Copy current GM turn for Chat
   const handleCopyCurrentTurn = useCallback(() => {
     if (!latestTurn) return;
-    const text = formatTurnAsMarkdown(latestTurn);
+    const text = formatTurnOutput(latestTurn);
     navigator.clipboard.writeText(text);
     setCopiedLatest(true);
     setTimeout(() => setCopiedLatest(false), 2000);
@@ -98,7 +86,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-mono selection:bg-emerald-500/30">
-      {/* Top Navigation / Status Header */}
+      {/* Top Header */}
       <header className="border-b border-neutral-800 bg-black/90 backdrop-blur sticky top-0 z-30 px-4 py-3">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -107,14 +95,14 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-sm md:text-base font-bold text-neutral-100 tracking-wider flex items-center gap-2">
-                ASCII DUNGEON CRAWLER
+                ADVANCED ASCII RPG
                 <span className="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded font-mono font-medium">
-                  RPG GM ENGINE
+                  20x20 GM ENGINE
                 </span>
               </h1>
               <p className="text-xs text-neutral-400 flex items-center gap-2">
                 <Compass className="w-3.5 h-3.5 text-neutral-500" />
-                <span>{currentLevel.title}</span>
+                <span>{gameState.floorData.name}</span>
                 <span className="text-neutral-600">•</span>
                 <span className="text-neutral-400">Turn #{gameState.turnCount}</span>
               </p>
@@ -148,10 +136,10 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content Layout */}
+      {/* Main Content */}
       <main className="max-w-7xl mx-auto w-full p-4 md:p-6 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Map & Character Status */}
-        <section className="lg:col-span-5 space-y-6">
+        {/* Left Column: 20x20 Map & Status Board */}
+        <section className="lg:col-span-6 space-y-6">
           <AsciiMap
             mapAscii={latestTurn.mapAscii}
             theme={theme}
@@ -161,25 +149,24 @@ export default function App() {
           />
 
           <StatusBoard
-            hpText={latestTurn.statusBoard.hp}
-            gold={latestTurn.statusBoard.gold}
-            weapon={latestTurn.statusBoard.weapon}
-            inventory={latestTurn.statusBoard.inventory}
-            onUseItem={handleUseItem}
+            location={latestTurn.statusBoard.location}
+            statsText={latestTurn.statusBoard.stats}
+            gearText={latestTurn.statusBoard.gear}
+            bagText={latestTurn.statusBoard.bag}
+            raw={latestTurn.statusBoard.raw}
+            onUsePotion={handleUsePotion}
           />
         </section>
 
         {/* Right Column: GM Turn Display & Interactive Controls */}
-        <section className="lg:col-span-7 space-y-6">
-          {/* Turn Display (Exact 4 structured sections) */}
+        <section className="lg:col-span-6 space-y-6">
           <TurnDisplay
             turn={latestTurn}
             onActionClick={handleExecuteAction}
           />
 
-          {/* Interactive Action Controls & Command Prompt */}
           <ControlsPanel
-            currentActions={latestTurn.actions}
+            currentActions={latestTurn.availableActions}
             onExecuteAction={handleExecuteAction}
             onReset={handleReset}
             theme={theme}
@@ -188,7 +175,6 @@ export default function App() {
             onToggleColorized={() => setColorized(!colorized)}
           />
 
-          {/* Turn Chronicle History */}
           <HistoryLog turns={gameState.turns} />
         </section>
       </main>
@@ -201,27 +187,23 @@ export default function App() {
               <Skull className="w-8 h-8" />
             </div>
             <h2 className="text-xl font-bold text-rose-400 mb-2 font-mono">
-              YOU HAVE FALLEN
+              YOU HAVE PERISHED
             </h2>
             <p className="text-xs text-neutral-300 mb-6 leading-relaxed">
-              The darkness of the dungeon claims your soul. Your bones rest beside the weeping cobblestones.
+              The darkness of {gameState.floorData.name} claims your soul.
             </p>
             <div className="bg-black/80 rounded-xl p-4 border border-neutral-800 text-xs font-mono mb-6 space-y-1.5 text-left">
               <div className="flex justify-between">
-                <span className="text-neutral-400">Floor Reached:</span>
-                <span className="text-neutral-200">{currentLevel.title}</span>
+                <span className="text-neutral-400">Depth Reached:</span>
+                <span className="text-neutral-200">Floor {gameState.floorData.floorNumber}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-neutral-400">Turns Survived:</span>
-                <span className="text-neutral-200">{gameState.turnCount}</span>
+                <span className="text-neutral-400">Hero Level:</span>
+                <span className="text-neutral-200">Level {gameState.playerStats.level}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-neutral-400">Gold Amassed:</span>
+                <span className="text-neutral-400">Gold Plundered:</span>
                 <span className="text-yellow-400 font-bold">{gameState.playerStats.gold}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-neutral-400">Final Weapon:</span>
-                <span className="text-cyan-300">{gameState.playerStats.weapon.name}</span>
               </div>
             </div>
             <button
@@ -229,7 +211,7 @@ export default function App() {
               onClick={handleReset}
               className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs font-mono uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-rose-950"
             >
-              Awaken in Cell Again
+              Awaken on Floor 1 Again
             </button>
           </div>
         </div>
@@ -243,22 +225,22 @@ export default function App() {
               <Trophy className="w-8 h-8" />
             </div>
             <h2 className="text-xl font-bold text-amber-400 mb-2 font-mono">
-              DUNGEON CONQUERED!
+              THE DRAGON IS SLAIN!
             </h2>
             <p className="text-xs text-neutral-300 mb-6 leading-relaxed">
-              You defeated the horrors of the forgotten labyrinth and stepped into the blazing sunlight, a living legend!
+              You defeated the infernal horrors and claimed the grand dungeon treasure!
             </p>
             <div className="bg-black/80 rounded-xl p-4 border border-neutral-800 text-xs font-mono mb-6 space-y-1.5 text-left">
               <div className="flex justify-between">
-                <span className="text-neutral-400">Total Turns:</span>
-                <span className="text-neutral-200">{gameState.turnCount}</span>
+                <span className="text-neutral-400">Final Level:</span>
+                <span className="text-neutral-200">Level {gameState.playerStats.level}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-neutral-400">Total Gold Plundered:</span>
                 <span className="text-yellow-400 font-bold">{gameState.playerStats.gold}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-neutral-400">Equipped Armament:</span>
+                <span className="text-neutral-400">Legendary Weapon:</span>
                 <span className="text-cyan-300">{gameState.playerStats.weapon.name}</span>
               </div>
             </div>
@@ -273,14 +255,14 @@ export default function App() {
         </div>
       )}
 
-      {/* Guide & Rules Modal */}
+      {/* Guide & Legend Modal */}
       {showHelp && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl font-mono text-xs">
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3 mb-4">
               <h3 className="font-bold text-neutral-100 flex items-center gap-2">
                 <Scroll className="w-4 h-4 text-emerald-400" />
-                GAME RULES & FORMAT
+                DUNGEON RULES & 20x20 LEGEND
               </h3>
               <button
                 type="button"
@@ -293,36 +275,45 @@ export default function App() {
             <div className="space-y-3 text-neutral-300 leading-relaxed max-h-96 overflow-y-auto pr-1">
               <div>
                 <strong className="text-emerald-400 block mb-1">
-                  Four Structured Sections per Turn:
+                  Output Structure (4 Sections Every Turn):
                 </strong>
                 <ol className="list-decimal list-inside space-y-1 text-neutral-400">
-                  <li><strong>MAP DISPLAY</strong>: 12x12 ASCII grid rendered in a code block.</li>
-                  <li><strong>STATUS BOARD</strong>: HP, Gold, Weapon, and Inventory.</li>
-                  <li><strong>SCENE DESCRIPTION</strong>: 2–3 sentences describing surroundings, sounds, or enemies.</li>
-                  <li><strong>ACTIONS</strong>: 3 to 4 logical choices for your next move.</li>
+                  <li><strong>MAP DISPLAY</strong>: Complete 20x20 top-down ASCII grid.</li>
+                  <li><strong>STATUS & INVENTORY BOARD</strong>: Location, Stats (HP/MP/EXP), Gear, Bag.</li>
+                  <li><strong>SCENE & COMBAT LOG</strong>: 2–3 descriptive sentences.</li>
+                  <li><strong>AVAILABLE ACTIONS</strong>: 4–5 specific action choices.</li>
                 </ol>
               </div>
 
               <div className="pt-2 border-t border-neutral-800">
-                <strong className="text-emerald-400 block mb-1">Grid Legend:</strong>
+                <strong className="text-emerald-400 block mb-1">Complete 20x20 Legend:</strong>
                 <div className="grid grid-cols-2 gap-1 text-[11px]">
-                  <div><span className="text-amber-300 font-bold">@</span> : Player</div>
-                  <div><span className="text-neutral-400 font-bold">#</span> : Impassable Wall</div>
-                  <div><span className="text-neutral-500 font-bold">.</span> : Floor / Walkway</div>
-                  <div><span className="text-orange-400 font-bold">+</span> : Door (Locked/Unlocked)</div>
-                  <div><span className="text-yellow-300 font-bold">$</span> : Treasure Chest</div>
-                  <div><span className="text-rose-400 font-bold">M</span> : Enemy Monster</div>
-                  <div><span className="text-purple-400 font-bold">^</span> : Trap (Spikes/Needles)</div>
+                  <div><span className="text-amber-300 font-bold">@</span> : Player Hero</div>
+                  <div><span className="text-neutral-400 font-bold">#</span> : Solid Wall</div>
+                  <div><span className="text-neutral-500 font-bold">.</span> : Open Floor</div>
+                  <div><span className="text-orange-500 font-bold">~</span> : Lava Hazard (-5 HP)</div>
+                  <div><span className="text-amber-500 font-bold">+</span> : Closed Door (Locked)</div>
+                  <div><span className="text-emerald-400 font-bold">/</span> : Open Door</div>
+                  <div><span className="text-cyan-300 font-bold">&gt;</span> : Stairs Down (Next Floor)</div>
+                  <div><span className="text-yellow-300 font-bold">$</span> : Gold / Treasure</div>
+                  <div><span className="text-rose-400 font-bold">P</span> : Health/Mana Potion</div>
+                  <div><span className="text-amber-400 font-bold">K</span> : Door Key</div>
+                  <div><span className="text-sky-300 font-bold">W</span> : Weapon Upgrade</div>
+                  <div><span className="text-indigo-300 font-bold">A</span> : Armor Upgrade</div>
+                  <div><span className="text-fuchsia-400 font-bold">?</span> : Mysterious Shrine</div>
+                  <div><span className="text-emerald-400 font-bold">g</span> : Goblin (Fast, low HP)</div>
+                  <div><span className="text-neutral-300 font-bold">S</span> : Skeleton (Medium HP)</div>
+                  <div><span className="text-orange-400 font-bold">O</span> : Orc (High HP, heavy hits)</div>
+                  <div><span className="text-rose-500 font-bold">D</span> : Boss Dragon (Deep Guardian)</div>
                 </div>
               </div>
 
               <div className="pt-2 border-t border-neutral-800">
                 <strong className="text-emerald-400 block mb-1">Controls:</strong>
                 <p className="text-neutral-400">
-                  - Keyboard: WASD or Arrow Keys for movement, Keys [1] through [4] for actions.<br />
-                  - Click any adjacent tile to move or interact.<br />
-                  - Type any command into the command console.<br />
-                  - Click &quot;Copy Turn (Chat)&quot; anytime to export the turn in clean Markdown.
+                  - Keyboard: WASD / Arrow Keys to move, Keys [1] through [5] for actions.<br />
+                  - Adjacent tiles can be clicked directly.<br />
+                  - Type any command into the prompt (e.g. &quot;attack goblin&quot;, &quot;unlock door&quot;, &quot;descend stairs&quot;).
                 </p>
               </div>
             </div>

@@ -1,113 +1,111 @@
-import { DungeonLevel, GameTurn, Monster, Chest, Trap, Door, PlayerStats } from '../types/game';
-import { DUNGEON_LEVELS } from './dungeonLevels';
+import {
+  FloorData,
+  GameTurn,
+  Monster,
+  GroundItem,
+  Door,
+  PlayerStats,
+} from '../types/game';
+import { createFloor1, generateProceduralFloor } from './dungeonGenerator';
 
 export interface GameState {
-  levelIndex: number;
+  floorData: FloorData;
   playerPos: { x: number; y: number };
   playerStats: PlayerStats;
   monsters: Monster[];
-  chests: Chest[];
-  traps: Trap[];
+  items: GroundItem[];
   doors: Door[];
   turns: GameTurn[];
   turnCount: number;
   gameOver: boolean;
   gameWon: boolean;
-  currentCombatLog?: string;
 }
 
 export function createInitialGameState(): GameState {
-  const level = DUNGEON_LEVELS[0];
-  const initialStats: PlayerStats = {
-    hp: 24,
-    maxHp: 24,
-    gold: 0,
+  const floor1 = createFloor1();
+  const playerStats: PlayerStats = {
+    hp: 30,
+    maxHp: 30,
+    mp: 15,
+    maxMp: 15,
+    level: 1,
+    exp: 0,
+    maxExp: 30,
     weapon: {
-      name: 'Rusty Iron Shiv',
-      atkBonus: 3,
+      name: 'Rusted Iron Blade',
+      damage: 3,
     },
-    inventory: ['Lesser Health Potion', 'Old Brass Key'],
+    armor: {
+      name: 'Tattered Cloth Tunic',
+      defense: 1,
+    },
+    gold: 0,
+    keys: 0,
+    potions: 1,
+    keyItems: ['Adventurer Crest'],
   };
 
-  const initialPos = { ...level.playerStart };
-  const initialMonsters = JSON.parse(JSON.stringify(level.monsters));
-  const initialChests = JSON.parse(JSON.stringify(level.chests));
-  const initialTraps = JSON.parse(JSON.stringify(level.traps));
-  const initialDoors = JSON.parse(JSON.stringify(level.doors));
-
   const state: GameState = {
-    levelIndex: 0,
-    playerPos: initialPos,
-    playerStats: initialStats,
-    monsters: initialMonsters,
-    chests: initialChests,
-    traps: initialTraps,
-    doors: initialDoors,
+    floorData: floor1,
+    playerPos: { ...floor1.playerStart },
+    playerStats,
+    monsters: JSON.parse(JSON.stringify(floor1.monsters)),
+    items: JSON.parse(JSON.stringify(floor1.items)),
+    doors: JSON.parse(JSON.stringify(floor1.doors)),
     turns: [],
     turnCount: 1,
     gameOver: false,
     gameWon: false,
   };
 
-  const firstTurn = generateTurn(state, undefined, level.startDescription);
-  state.turns = [firstTurn];
+  const initialTurn = generateTurn(state, undefined, floor1.themeDescription);
+  state.turns = [initialTurn];
 
   return state;
 }
 
-export function renderAsciiMap(
-  level: DungeonLevel,
+export function render20x20Map(
+  floorData: FloorData,
   playerPos: { x: number; y: number },
   monsters: Monster[],
-  chests: Chest[],
-  traps: Trap[],
+  items: GroundItem[],
   doors: Door[]
 ): string {
-  // Construct 12x12 grid based on base layout
-  const grid: string[][] = Array.from({ length: 12 }, (_, y) => {
-    const row = level.baseGrid[y] || '############';
+  // 20x20 grid copy
+  const grid: string[][] = Array.from({ length: 20 }, (_, y) => {
+    const row = floorData.baseGrid[y] || '####################';
     return row.split('');
   });
 
-  // Clear baseline entity markers if any in template and replace with floor
-  for (let y = 0; y < 12; y++) {
-    for (let x = 0; x < 12; x++) {
-      if (grid[y][x] === '@' || grid[y][x] === 'M' || grid[y][x] === '$' || grid[y][x] === '^') {
-        grid[y][x] = '.';
-      }
-    }
+  // Render stairs down '>'
+  const { stairsPos } = floorData;
+  if (stairsPos && stairsPos.y >= 0 && stairsPos.y < 20 && stairsPos.x >= 0 && stairsPos.x < 20) {
+    grid[stairsPos.y][stairsPos.x] = '>';
   }
 
-  // Draw doors
+  // Render doors ('+' closed or '/' open)
   doors.forEach((door) => {
-    if (door.y >= 0 && door.y < 12 && door.x >= 0 && door.x < 12) {
-      grid[door.y][door.x] = '+';
+    if (door.y >= 0 && door.y < 20 && door.x >= 0 && door.x < 20) {
+      grid[door.y][door.x] = door.isOpen ? '/' : '+';
     }
   });
 
-  // Draw traps (active traps show as '^', disarmed or triggered as '.')
-  traps.forEach((trap) => {
-    if (trap.y >= 0 && trap.y < 12 && trap.x >= 0 && trap.x < 12) {
-      grid[trap.y][trap.x] = trap.disarmed || trap.triggered ? '.' : '^';
+  // Render ground items ('$', 'P', 'K', 'W', 'A', '?')
+  items.forEach((item) => {
+    if (item.y >= 0 && item.y < 20 && item.x >= 0 && item.x < 20) {
+      grid[item.y][item.x] = item.type;
     }
   });
 
-  // Draw chests (unopened as '$', opened as '.')
-  chests.forEach((chest) => {
-    if (chest.y >= 0 && chest.y < 12 && chest.x >= 0 && chest.x < 12) {
-      grid[chest.y][chest.x] = chest.opened ? '.' : '$';
-    }
-  });
-
-  // Draw living monsters
+  // Render living monsters ('g', 'S', 'O', 'D')
   monsters.forEach((monster) => {
-    if (monster.alive && monster.y >= 0 && monster.y < 12 && monster.x >= 0 && monster.x < 12) {
-      grid[monster.y][monster.x] = 'M';
+    if (monster.alive && monster.y >= 0 && monster.y < 20 && monster.x >= 0 && monster.x < 20) {
+      grid[monster.y][monster.x] = monster.symbol;
     }
   });
 
-  // Draw player '@'
-  if (playerPos.y >= 0 && playerPos.y < 12 && playerPos.x >= 0 && playerPos.x < 12) {
+  // Render player '@'
+  if (playerPos.y >= 0 && playerPos.y < 20 && playerPos.x >= 0 && playerPos.x < 20) {
     grid[playerPos.y][playerPos.x] = '@';
   }
 
@@ -117,54 +115,52 @@ export function renderAsciiMap(
 export function generateTurn(
   state: GameState,
   actionTaken?: string,
-  customScene?: string,
-  combatLog?: string
+  customSceneAndLog?: string
 ): GameTurn {
-  const currentLevel = DUNGEON_LEVELS[state.levelIndex];
-  const mapAscii = renderAsciiMap(
-    currentLevel,
+  const mapAscii = render20x20Map(
+    state.floorData,
     state.playerPos,
     state.monsters,
-    state.chests,
-    state.traps,
+    state.items,
     state.doors
   );
 
+  const { playerStats } = state;
   const statusBoard = {
-    hp: `${state.playerStats.hp}/${state.playerStats.maxHp}`,
-    gold: state.playerStats.gold,
-    weapon: `${state.playerStats.weapon.name} (+${state.playerStats.weapon.atkBonus} ATK)`,
-    inventory: [...state.playerStats.inventory],
+    location: `Floor ${state.floorData.floorNumber}`,
+    stats: `HP: [${playerStats.hp}/${playerStats.maxHp}] | MP: [${playerStats.mp}/${playerStats.maxMp}] | Level: [${playerStats.level}] (EXP: [${playerStats.exp}/${playerStats.maxExp}])`,
+    gear: `Weapon: [${playerStats.weapon.name} (+${playerStats.weapon.damage})] | Armor: [${playerStats.armor.name} (+${playerStats.armor.defense})]`,
+    bag: `Gold: [${playerStats.gold}] | Keys: [${playerStats.keys}] | Potions: [${playerStats.potions}] | Key Items: [${playerStats.keyItems.length > 0 ? playerStats.keyItems.join(', ') : 'None'}]`,
+    raw: {
+      ...playerStats,
+      keyItems: [...playerStats.keyItems],
+    },
   };
 
-  // Determine dynamic scene description
-  let sceneDescription = customScene || '';
-  if (!sceneDescription) {
-    sceneDescription = buildSceneDescription(state, currentLevel, combatLog);
-  }
+  const sceneAndCombatLog =
+    customSceneAndLog || buildSceneAndCombatLog(state);
 
-  // Determine 3 to 4 logical choices
-  const actions = determineActions(state, currentLevel);
+  const availableActions = determineAvailableActions(state);
 
   return {
     turnNumber: state.turnCount,
+    floor: state.floorData.floorNumber,
     mapAscii,
     statusBoard,
-    sceneDescription,
-    actions,
-    combatEvent: combatLog,
+    sceneAndCombatLog,
+    availableActions,
     actionTaken,
     timestamp: Date.now(),
   };
 }
 
-function buildSceneDescription(state: GameState, level: DungeonLevel, combatLog?: string): string {
+function buildSceneAndCombatLog(state: GameState): string {
   if (state.gameOver) {
-    return 'Your vision fades as darkness claims the dungeon. Your battered body collapses onto the cold stone floor, joining the forgotten bones of adventurers who came before you.';
+    return 'Your breath falters as the dungeon darkness closes in. Your body collapses onto the cold stones, becoming another grim warning for future delvers.';
   }
 
   if (state.gameWon) {
-    return 'With the final dungeon threat vanquished, daylight pours through an ancient archway ahead. You emerge victorious from the forgotten labyrinth, your pack laden with riches and legendary glory!';
+    return 'The monstrous dragon collapses with a final earth-shaking shudder! Golden light pours down the vaulted hall as you claim the legendary dungeon crown and step forth as conqueror!';
   }
 
   const { x, y } = state.playerPos;
@@ -173,54 +169,55 @@ function buildSceneDescription(state: GameState, level: DungeonLevel, combatLog?
   const adjMonster = state.monsters.find(
     (m) => m.alive && Math.abs(m.x - x) + Math.abs(m.y - y) === 1
   );
-
   if (adjMonster) {
-    return `A snarling ${adjMonster.name} lunges in the dim torchlight just paces ahead! Its menacing gaze fixes upon you, ready to strike at the slightest twitch.`;
+    return `A menacing ${adjMonster.name} (${adjMonster.symbol}) snarls within striking distance! Its weapons glint under your torchlight as it poises to strike.`;
   }
 
-  // Check adjacent chests
-  const adjChest = state.chests.find(
-    (c) => !c.opened && Math.abs(c.x - x) + Math.abs(c.y - y) === 1
-  );
-  if (adjChest) {
-    return `In the gloom beside you rests an untouched treasure chest, its iron lock glinting faintly. The dungeon whispers with quiet tension as you inspect the lock.`;
+  // Check adjacent or standing items
+  const itemHere = state.items.find((i) => i.x === x && i.y === y);
+  if (itemHere) {
+    return `You step beside a ${itemHere.name} (${itemHere.type}). ${itemHere.description}`;
   }
 
-  // Check adjacent doors
+  // Check adjacent door
   const adjDoor = state.doors.find(
     (d) => Math.abs(d.x - x) + Math.abs(d.y - y) === 1
   );
   if (adjDoor) {
-    return `You stand before a ${adjDoor.name}. Cold air seeps through the crevice between stone and iron, carrying the faint murmur of whatever lurks beyond.`;
+    return `You stand before ${adjDoor.name} [${adjDoor.isOpen ? 'Open /' : 'Closed +' }]. Cool drafts and distant echoes murmur through the stone seam.`;
   }
 
-  // Check if just won combat
-  if (combatLog && combatLog.includes('slain')) {
-    return 'The beast collapses in a heap, its dark blood seeping into the stone floor cracks. A brief, eerie calm returns to the damp dungeon corridor.';
+  // Check stairs
+  if (state.floorData.stairsPos && state.floorData.stairsPos.x === x && state.floorData.stairsPos.y === y) {
+    return 'You stand directly atop the ancient stone staircase (>) spiraling into the deep abyss below. The deeper dungeon awaits your descent.';
   }
 
-  // Check trap triggered
-  if (combatLog && combatLog.includes('trap')) {
-    return 'Mechanical gears click ominously beneath your boots as hidden spikes shoot outward! Pain jolts through your limbs before the mechanism resets.';
-  }
-
-  // Positional ambience
-  const cellSurroundings = [
-    'Water drips rhythmically from crumbling ceiling stones into dark puddles. Faint draft flutters the dying torch embers along the mossy dungeon walls.',
-    'Cobwebs drift lazily between stone arches as the silence of ancient catacombs presses heavily against your ears.',
-    'Scattered shards of ancient pottery and rusted chains litter the flagstones. Shadows dance across the 12-pace chamber as you advance.',
+  const atmos = [
+    'Distant water droplets echo through the cavernous 20x20 corridor. The smell of cold slate and ancient ashes hangs heavy in the still air.',
+    'Cobwebs tremble as a faint draft stirs along the mossy flagstones. Shadows dance across the walls with every flicker of your torch.',
+    'Quiet settles over the stone hall, broken only by your measured footsteps. The ancient masonry holds countless secrets yet to be uncovered.',
   ];
 
-  return cellSurroundings[(state.turnCount + x + y) % cellSurroundings.length];
+  return atmos[(state.turnCount + x + y) % atmos.length];
 }
 
-function determineActions(state: GameState, level: DungeonLevel): string[] {
+function determineAvailableActions(state: GameState): string[] {
   if (state.gameOver) {
-    return ['Restart Adventure', 'View Run Summary', 'Try Different Route'];
+    return [
+      'Restart Adventure on Floor 1',
+      'Inspect Cause of Death',
+      'Begin New Character Run',
+      'Review Chronicle Log',
+    ];
   }
 
   if (state.gameWon) {
-    return ['Start New Delve', 'Celebrate Victory', 'Ascend to Surface'];
+    return [
+      'Descend into Endless Delve Mode',
+      'Celebrate Victorious Conquest',
+      'Return to Surface Tavern',
+      'Begin New Game Plus',
+    ];
   }
 
   const actions: string[] = [];
@@ -231,15 +228,19 @@ function determineActions(state: GameState, level: DungeonLevel): string[] {
     (m) => m.alive && Math.abs(m.x - x) + Math.abs(m.y - y) === 1
   );
   if (adjMonster) {
-    actions.push(`Attack ${adjMonster.name}`);
+    actions.push(`Attack ${adjMonster.name} (${adjMonster.symbol}) with ${state.playerStats.weapon.name}`);
+    if (state.playerStats.mp >= 4) {
+      actions.push(`Cast Arcane Bolt at ${adjMonster.name} (4 MP)`);
+    }
   }
 
-  // 2. Chest open if adjacent or standing on it
-  const adjChest = state.chests.find(
-    (c) => !c.opened && Math.abs(c.x - x) + Math.abs(c.y - y) <= 1
-  );
-  if (adjChest) {
-    actions.push('Open treasure chest');
+  // 2. Stairs Down if on stairs
+  const onStairs =
+    state.floorData.stairsPos &&
+    state.floorData.stairsPos.x === x &&
+    state.floorData.stairsPos.y === y;
+  if (onStairs) {
+    actions.push(`Descend Stairs (>) to Floor ${state.floorData.floorNumber + 1}`);
   }
 
   // 3. Door interaction if adjacent
@@ -247,62 +248,71 @@ function determineActions(state: GameState, level: DungeonLevel): string[] {
     (d) => Math.abs(d.x - x) + Math.abs(d.y - y) === 1
   );
   if (adjDoor) {
-    if (adjDoor.locked) {
-      actions.push(`Unlock ${adjDoor.name}`);
-    } else {
-      actions.push(`Pass through ${adjDoor.name}`);
+    if (!adjDoor.isOpen) {
+      if (adjDoor.requiresKey) {
+        actions.push(`Unlock ${adjDoor.name} with Key (${state.playerStats.keys} Keys)`);
+      } else {
+        actions.push(`Open ${adjDoor.name} (+)`);
+      }
     }
   }
 
-  // 4. Movement options
-  const directions = [
+  // 4. Item pickup or inspection if on tile
+  const itemHere = state.items.find((i) => i.x === x && i.y === y);
+  if (itemHere) {
+    actions.push(`Pick up ${itemHere.name} (${itemHere.type})`);
+  }
+
+  // 5. Cardinal Movements
+  const dirs = [
     { name: 'North', dx: 0, dy: -1 },
     { name: 'East', dx: 1, dy: 0 },
     { name: 'South', dx: 0, dy: 1 },
     { name: 'West', dx: -1, dy: 0 },
   ];
 
-  for (const dir of directions) {
-    if (actions.length >= 4) break;
-    const nx = x + dir.dx;
-    const ny = y + dir.dy;
-
-    if (nx >= 0 && nx < 12 && ny >= 0 && ny < 12) {
-      const tile = level.baseGrid[ny]?.[nx];
-      // Check if it's not a wall
+  for (const d of dirs) {
+    if (actions.length >= 5) break;
+    const nx = x + d.dx;
+    const ny = y + d.dy;
+    if (nx >= 0 && nx < 20 && ny >= 0 && ny < 20) {
+      const tile = state.floorData.baseGrid[ny]?.[nx];
       if (tile !== '#') {
         const hasMonster = state.monsters.some((m) => m.alive && m.x === nx && m.y === ny);
-        if (!hasMonster) {
-          actions.push(`Move ${dir.name}`);
+        const closedDoor = state.doors.some((door) => !door.isOpen && door.x === nx && door.y === ny);
+        if (!hasMonster && !closedDoor) {
+          actions.push(`Move ${d.name}`);
         }
       }
     }
   }
 
-  // 5. Consumables or Utility if space permits
-  const hasPotion = state.playerStats.inventory.some((i) => i.toLowerCase().includes('potion'));
-  if (actions.length < 4 && hasPotion && state.playerStats.hp < state.playerStats.maxHp) {
-    actions.push('Drink Healing Potion');
+  // 6. Usables (Potion or Rest)
+  if (actions.length < 5 && state.playerStats.potions > 0 && (state.playerStats.hp < state.playerStats.maxHp || state.playerStats.mp < state.playerStats.maxMp)) {
+    actions.push(`Use Health/Mana Potion (${state.playerStats.potions} in Bag)`);
   }
 
-  if (actions.length < 3) {
-    actions.push('Search area carefully');
-  }
-  if (actions.length < 3) {
+  if (actions.length < 4) {
     actions.push('Rest and catch breath');
   }
+  if (actions.length < 4) {
+    actions.push('Inspect surroundings for hidden traps');
+  }
 
-  // Ensure exactly 3 to 4 actions
-  return actions.slice(0, 4);
+  return actions.slice(0, 5);
 }
 
-export function executePlayerAction(
+export function executeTurnAction(
   currentState: GameState,
   actionText: string
 ): { newState: GameState; soundType: 'step' | 'attack' | 'monsterHit' | 'chest' | 'trap' | 'door' | 'potion' | null } {
   const state: GameState = JSON.parse(JSON.stringify(currentState));
+  const lower = actionText.toLowerCase().trim();
+  let soundType: 'step' | 'attack' | 'monsterHit' | 'chest' | 'trap' | 'door' | 'potion' | null = null;
+  let logMessage = '';
+
   if (state.gameOver || state.gameWon) {
-    if (actionText.toLowerCase().includes('restart') || actionText.toLowerCase().includes('new delve')) {
+    if (lower.includes('restart') || lower.includes('begin new') || lower.includes('new game') || lower.includes('delve')) {
       const fresh = createInitialGameState();
       return { newState: fresh, soundType: 'step' };
     }
@@ -310,43 +320,72 @@ export function executePlayerAction(
   }
 
   state.turnCount += 1;
-  const currentLevel = DUNGEON_LEVELS[state.levelIndex];
-  const lower = actionText.toLowerCase().trim();
-  let soundType: 'step' | 'attack' | 'monsterHit' | 'chest' | 'trap' | 'door' | 'potion' | null = null;
-  let combatLog: string | undefined = undefined;
+  const { x, y } = state.playerPos;
 
-  // 1. ATTACK ACTION
-  if (lower.startsWith('attack') || lower.includes('fight') || lower.includes('strike')) {
+  // 1. ARCANE BOLT / SPELL ATTACK
+  if (lower.includes('arcane bolt') || lower.includes('spell') || lower.includes('magic')) {
     const adjMonster = state.monsters.find(
-      (m) => m.alive && Math.abs(m.x - state.playerPos.x) + Math.abs(m.y - state.playerPos.y) === 1
+      (m) => m.alive && Math.abs(m.x - x) + Math.abs(m.y - y) <= 2
     );
-
-    if (adjMonster) {
+    if (adjMonster && state.playerStats.mp >= 4) {
+      state.playerStats.mp -= 4;
+      const spellDmg = Math.floor(Math.random() * 6) + 12;
+      adjMonster.hp -= spellDmg;
       soundType = 'attack';
-      // Player attacks
-      const playerRoll = Math.floor(Math.random() * 4) + state.playerStats.weapon.atkBonus + 2;
-      const damageToMonster = Math.max(1, playerRoll - adjMonster.def);
-      adjMonster.hp -= damageToMonster;
-
-      combatLog = `You slash ${adjMonster.name} with ${state.playerStats.weapon.name} for ${damageToMonster} damage!`;
+      logMessage = `You unleash an Arcane Bolt crackling into ${adjMonster.name} for ${spellDmg} arcane damage!`;
 
       if (adjMonster.hp <= 0) {
         adjMonster.alive = false;
         adjMonster.hp = 0;
         state.playerStats.gold += adjMonster.gold;
-        combatLog += ` The ${adjMonster.name} collapses slain! Found ${adjMonster.gold} gold.`;
-
-        // Check if all monsters dead on boss floor
-        if (state.levelIndex === DUNGEON_LEVELS.length - 1 && state.monsters.every((m) => !m.alive)) {
+        gainExp(state, adjMonster.exp);
+        logMessage += ` The ${adjMonster.name} disintegrates in a shower of sparks! Plundered ${adjMonster.gold} Gold and gained ${adjMonster.exp} EXP.`;
+        if (adjMonster.type === 'D') {
           state.gameWon = true;
-          combatLog += ' The dungeon lord is vanquished!';
+          logMessage += ' The Boss Dragon has fallen! The labyrinth is yours!';
+        }
+      }
+    } else if (state.playerStats.mp < 4) {
+      logMessage = 'Not enough Mana (MP) to cast Arcane Bolt!';
+    } else {
+      logMessage = 'No monster in range for your spell.';
+    }
+  }
+
+  // 2. MELEE ATTACK
+  else if (lower.startsWith('attack') || lower.includes('strike') || lower.includes('slash')) {
+    const adjMonster = state.monsters.find(
+      (m) => m.alive && Math.abs(m.x - x) + Math.abs(m.y - y) === 1
+    );
+
+    if (adjMonster) {
+      soundType = 'attack';
+      const playerRoll =
+        Math.floor(Math.random() * 4) +
+        state.playerStats.weapon.damage +
+        state.playerStats.level * 2;
+      const dmg = Math.max(1, playerRoll - adjMonster.def);
+      adjMonster.hp -= dmg;
+
+      logMessage = `You strike ${adjMonster.name} with ${state.playerStats.weapon.name} for ${dmg} damage!`;
+
+      if (adjMonster.hp <= 0) {
+        adjMonster.alive = false;
+        adjMonster.hp = 0;
+        state.playerStats.gold += adjMonster.gold;
+        gainExp(state, adjMonster.exp);
+        logMessage += ` The ${adjMonster.name} is slain! Found ${adjMonster.gold} Gold and earned ${adjMonster.exp} EXP.`;
+
+        if (adjMonster.type === 'D') {
+          state.gameWon = true;
+          logMessage += ' The legendary Boss Dragon collapses slain! You have conquered the dungeon depths!';
         }
       } else {
-        // Monster counter attacks
+        // Monster retaliates
         const monsterRoll = Math.floor(Math.random() * 3) + adjMonster.atk;
-        const damageToPlayer = Math.max(1, monsterRoll - 1);
-        state.playerStats.hp = Math.max(0, state.playerStats.hp - damageToPlayer);
-        combatLog += ` The ${adjMonster.name} retaliates for ${damageToPlayer} damage!`;
+        const damageTaken = Math.max(1, monsterRoll - state.playerStats.armor.defense);
+        state.playerStats.hp = Math.max(0, state.playerStats.hp - damageTaken);
+        logMessage += ` The ${adjMonster.name} retaliates for ${damageTaken} damage!`;
 
         if (state.playerStats.hp <= 0) {
           state.gameOver = true;
@@ -354,115 +393,127 @@ export function executePlayerAction(
         }
       }
     } else {
-      combatLog = 'You swing your blade into the empty dark, but no enemy is within reach.';
+      logMessage = 'You swing your blade into empty air, but no monster is adjacent.';
     }
   }
 
-  // 2. OPEN CHEST
-  else if (lower.includes('chest') || lower.includes('loot') || lower === 'open') {
-    const chest = state.chests.find(
-      (c) => !c.opened && Math.abs(c.x - state.playerPos.x) + Math.abs(c.y - state.playerPos.y) <= 1
-    );
+  // 3. DESCEND STAIRS (>)
+  else if (lower.includes('descend') || lower.includes('stairs') || lower === '>') {
+    const onStairs =
+      state.floorData.stairsPos &&
+      state.floorData.stairsPos.x === x &&
+      state.floorData.stairsPos.y === y;
 
-    if (chest) {
-      chest.opened = true;
-      soundType = 'chest';
-      state.playerStats.gold += chest.gold;
-      let logMsg = `You pry open the chest and find ${chest.gold} gold!`;
-
-      if (chest.weapon && chest.weapon.atk > state.playerStats.weapon.atkBonus) {
-        const oldWeapon = state.playerStats.weapon.name;
-        state.playerStats.weapon = {
-          name: chest.weapon.name,
-          atkBonus: chest.weapon.atk,
-        };
-        logMsg += ` Equipped new weapon: ${chest.weapon.name} (+${chest.weapon.atk} ATK) replacing ${oldWeapon}.`;
-      }
-
-      if (chest.item) {
-        state.playerStats.inventory.push(chest.item);
-        logMsg += ` Placed ${chest.item} into inventory.`;
-      }
-
-      combatLog = logMsg;
+    if (onStairs) {
+      const nextFloorNum = state.floorData.floorNumber + 1;
+      const nextFloorData = generateProceduralFloor(nextFloorNum);
+      state.floorData = nextFloorData;
+      state.playerPos = { ...nextFloorData.playerStart };
+      state.monsters = JSON.parse(JSON.stringify(nextFloorData.monsters));
+      state.items = JSON.parse(JSON.stringify(nextFloorData.items));
+      state.doors = JSON.parse(JSON.stringify(nextFloorData.doors));
+      soundType = 'door';
+      logMessage = `You venture down the spiraling stone stairs deeper into the earth... Entered ${nextFloorData.name}!`;
     } else {
-      combatLog = 'There is no unopened chest close enough to reach.';
+      logMessage = 'You must stand directly on the Stairs Down (>) to descend.';
     }
   }
 
-  // 3. DOOR INTERACTION
-  else if (lower.includes('door') || lower.includes('pass through') || lower.includes('portcullis') || lower.includes('gate') || lower.includes('unlock')) {
-    const door = state.doors.find(
-      (d) => Math.abs(d.x - state.playerPos.x) + Math.abs(d.y - state.playerPos.y) === 1
+  // 4. UNLOCK OR OPEN DOOR (+ -> /)
+  else if (lower.includes('door') || lower.includes('unlock') || lower.includes('portcullis')) {
+    const adjDoor = state.doors.find(
+      (d) => Math.abs(d.x - x) + Math.abs(d.y - y) === 1
     );
 
-    if (door) {
-      if (door.locked) {
-        // Check if player has key
-        const keyIndex = state.playerStats.inventory.findIndex(
-          (item) => door.keyRequired && item.toLowerCase().includes(door.keyRequired.toLowerCase())
-        );
-
-        if (keyIndex !== -1 || state.playerStats.inventory.some((i) => i.toLowerCase().includes('key'))) {
-          door.locked = false;
+    if (adjDoor) {
+      if (adjDoor.isOpen) {
+        logMessage = `The ${adjDoor.name} is already open. You can freely walk through.`;
+      } else if (adjDoor.requiresKey) {
+        if (state.playerStats.keys > 0) {
+          state.playerStats.keys -= 1;
+          adjDoor.isOpen = true;
+          adjDoor.requiresKey = false;
           soundType = 'door';
-          combatLog = `You insert the key into the heavy lock. With a resonant scrape of ancient iron, the ${door.name} unlocks!`;
+          logMessage = `You turn the heavy key in the tumbler. The ${adjDoor.name} unlocks and swings open (/)!`;
         } else {
-          combatLog = `The ${door.name} is sealed tight. You need ${door.keyRequired || 'a key'} to unlock it.`;
+          logMessage = `The ${adjDoor.name} is locked tight (+). You need a Door Key (K) to open it.`;
         }
       } else {
-        // Pass through or move onto door tile
-        state.playerPos = { x: door.x, y: door.y };
+        adjDoor.isOpen = true;
         soundType = 'door';
-        combatLog = `You push through the ${door.name} into the adjoining dungeon passage.`;
+        logMessage = `You push open the heavy ${adjDoor.name} (/)!`;
       }
     } else {
-      combatLog = 'There is no door adjacent to your position.';
+      logMessage = 'No door is close enough to interact with.';
     }
   }
 
-  // 4. DRINK POTION
-  else if (lower.includes('potion') || lower.includes('drink') || lower.includes('heal')) {
-    const potionIndex = state.playerStats.inventory.findIndex((i) =>
-      i.toLowerCase().includes('potion')
-    );
+  // 5. PICK UP OR USE ITEM ON TILE
+  else if (lower.includes('pick up') || lower.includes('loot') || lower.includes('grab')) {
+    const itemIndex = state.items.findIndex((i) => i.x === x && i.y === y);
+    if (itemIndex !== -1) {
+      const item = state.items[itemIndex];
+      state.items.splice(itemIndex, 1);
+      soundType = 'chest';
 
-    if (potionIndex !== -1) {
-      const potionName = state.playerStats.inventory[potionIndex];
-      state.playerStats.inventory.splice(potionIndex, 1);
-      const healAmount = potionName.toLowerCase().includes('greater') ? 16 : 10;
-      const prevHp = state.playerStats.hp;
-      state.playerStats.hp = Math.min(state.playerStats.maxHp, state.playerStats.hp + healAmount);
+      if (item.type === '$') {
+        const goldAmt = item.value || 30;
+        state.playerStats.gold += goldAmt;
+        logMessage = `You scooped up the ${item.name}, adding ${goldAmt} Gold to your pouch!`;
+      } else if (item.type === 'K') {
+        state.playerStats.keys += 1;
+        state.playerStats.keyItems.push(item.name);
+        logMessage = `You acquired the ${item.name}! Added 1 Key to your bag.`;
+      } else if (item.type === 'P') {
+        state.playerStats.potions += 1;
+        logMessage = `You picked up a ${item.name}! Potions count increased to ${state.playerStats.potions}.`;
+      } else if (item.type === 'W' && item.weaponData) {
+        const oldWep = state.playerStats.weapon.name;
+        state.playerStats.weapon = item.weaponData;
+        logMessage = `You equipped ${item.weaponData.name} (+${item.weaponData.damage} Damage), replacing ${oldWep}!`;
+      } else if (item.type === 'A' && item.armorData) {
+        const oldArm = state.playerStats.armor.name;
+        state.playerStats.armor = item.armorData;
+        logMessage = `You donned the ${item.armorData.name} (+${item.armorData.defense} Defense), replacing ${oldArm}!`;
+      } else if (item.type === '?') {
+        state.playerStats.hp = state.playerStats.maxHp;
+        state.playerStats.mp = state.playerStats.maxMp;
+        gainExp(state, 25);
+        soundType = 'potion';
+        logMessage = `You pray before the ${item.name}! Warm radiant starlight washes over you, completely restoring HP and MP, and granting +25 EXP!`;
+      }
+    } else {
+      logMessage = 'There is no item on this tile to pick up.';
+    }
+  }
+
+  // 6. USE POTION
+  else if (lower.includes('potion') || lower.includes('drink potion')) {
+    if (state.playerStats.potions > 0) {
+      state.playerStats.potions -= 1;
+      const hpHealed = 20;
+      const mpHealed = 10;
+      state.playerStats.hp = Math.min(state.playerStats.maxHp, state.playerStats.hp + hpHealed);
+      state.playerStats.mp = Math.min(state.playerStats.maxMp, state.playerStats.mp + mpHealed);
       soundType = 'potion';
-      combatLog = `You quaff the ${potionName}, soothing your wounds and restoring ${state.playerStats.hp - prevHp} HP.`;
+      logMessage = `You drank a Potion! Restored +${hpHealed} HP and +${mpHealed} MP. Remaining potions: ${state.playerStats.potions}.`;
     } else {
-      combatLog = 'You do not have any healing potions left in your inventory.';
+      logMessage = 'You do not have any potions remaining in your bag.';
     }
   }
 
-  // 5. REST / SEARCH
-  else if (lower.includes('rest') || lower.includes('catch breath')) {
-    if (state.playerStats.hp < state.playerStats.maxHp) {
-      state.playerStats.hp = Math.min(state.playerStats.maxHp, state.playerStats.hp + 2);
-      combatLog = 'You catch your breath against the stone wall, regaining 2 HP.';
-    } else {
-      combatLog = 'You steady your resolve and listen to the dungeon echoes. You are already at peak vitality.';
-    }
-  } else if (lower.includes('search')) {
-    // Check if on or adjacent to trap
-    const nearTrap = state.traps.find(
-      (t) => !t.disarmed && !t.triggered && Math.abs(t.x - state.playerPos.x) <= 1 && Math.abs(t.y - state.playerPos.y) <= 1
-    );
-
-    if (nearTrap) {
-      nearTrap.disarmed = true;
-      combatLog = `Your keen eye detects a ${nearTrap.name}! You carefully wedge a stone under the plate, safely disarming it.`;
-    } else {
-      combatLog = 'You search the flagstones thoroughly, finding only dust, dried blood, and cold gravel.';
-    }
+  // 7. REST / INSPECT
+  else if (lower.includes('rest')) {
+    const hpRegen = 2;
+    const mpRegen = 2;
+    state.playerStats.hp = Math.min(state.playerStats.maxHp, state.playerStats.hp + hpRegen);
+    state.playerStats.mp = Math.min(state.playerStats.maxMp, state.playerStats.mp + mpRegen);
+    logMessage = `You pause to rest, regaining ${hpRegen} HP and ${mpRegen} MP.`;
+  } else if (lower.includes('inspect')) {
+    logMessage = 'You inspect the walls and floorstones; no hidden spike triggers or secret passages are detected in this sector.';
   }
 
-  // 6. MOVEMENT
+  // 8. CARDINAL MOVEMENT (North, South, East, West)
   else {
     let dx = 0;
     let dy = 0;
@@ -473,98 +524,140 @@ export function executePlayerAction(
     else if (lower.includes('east') || lower === 'd' || lower === 'right' || lower === 'e') dx = 1;
 
     if (dx !== 0 || dy !== 0) {
-      const targetX = state.playerPos.x + dx;
-      const targetY = state.playerPos.y + dy;
+      const targetX = x + dx;
+      const targetY = y + dy;
 
-      if (targetX >= 0 && targetX < 12 && targetY >= 0 && targetY < 12) {
-        const tile = currentLevel.baseGrid[targetY]?.[targetX];
-
-        // Check monster blocking
+      if (targetX >= 0 && targetX < 20 && targetY >= 0 && targetY < 20) {
+        const tile = state.floorData.baseGrid[targetY]?.[targetX];
         const monsterAtTile = state.monsters.find(
           (m) => m.alive && m.x === targetX && m.y === targetY
         );
-
-        // Check door blocking
         const doorAtTile = state.doors.find((d) => d.x === targetX && d.y === targetY);
 
         if (monsterAtTile) {
-          // Auto initiate attack!
-          return executePlayerAction(currentState, `Attack ${monsterAtTile.name}`);
-        } else if (doorAtTile && doorAtTile.locked) {
-          combatLog = `The ${doorAtTile.name} is locked! You must unlock it before passing.`;
+          // Bumping monster initiates attack
+          return executeTurnAction(currentState, `Attack ${monsterAtTile.name}`);
+        } else if (doorAtTile && !doorAtTile.isOpen) {
+          if (doorAtTile.requiresKey) {
+            if (state.playerStats.keys > 0) {
+              doorAtTile.isOpen = true;
+              state.playerStats.keys -= 1;
+              state.playerPos = { x: targetX, y: targetY };
+              soundType = 'door';
+              logMessage = `You unlocked the ${doorAtTile.name} with your key and stepped through (/)!`;
+            } else {
+              logMessage = `The ${doorAtTile.name} is locked (+). You need a key (K) to open it.`;
+            }
+          } else {
+            doorAtTile.isOpen = true;
+            state.playerPos = { x: targetX, y: targetY };
+            soundType = 'door';
+            logMessage = `You pushed open the ${doorAtTile.name} and walked into the next room (/)!`;
+          }
         } else if (tile === '#') {
-          combatLog = 'A solid, moss-covered stone wall blocks your path.';
+          logMessage = 'A solid stone wall blocks your path.';
         } else {
-          // Successful step
+          // Valid move
           state.playerPos = { x: targetX, y: targetY };
           soundType = 'step';
+          logMessage = `You moved ${getDirName(dx, dy)} to (${targetX}, ${targetY}).`;
 
-          // Check trap trigger
-          const trapAtTile = state.traps.find(
-            (t) => !t.disarmed && !t.triggered && t.x === targetX && t.y === targetY
-          );
-          if (trapAtTile) {
-            trapAtTile.triggered = true;
-            state.playerStats.hp = Math.max(0, state.playerStats.hp - trapAtTile.damage);
+          // Check if stepped into lava hazard '~'
+          if (tile === '~') {
+            const lavaDmg = 5;
+            state.playerStats.hp = Math.max(0, state.playerStats.hp - lavaDmg);
             soundType = 'trap';
-            combatLog = `*SNAP!* You step directly onto a ${trapAtTile.name}! Spikes plunge upward, dealing ${trapAtTile.damage} damage!`;
-
+            logMessage += ` Scorching lava (~) burns your boots for ${lavaDmg} damage!`;
             if (state.playerStats.hp <= 0) {
               state.gameOver = true;
             }
           }
 
-          // Check level exit
-          if (
-            currentLevel.exitPos &&
-            targetX === currentLevel.exitPos.x &&
-            targetY === currentLevel.exitPos.y
-          ) {
-            if (state.levelIndex < DUNGEON_LEVELS.length - 1) {
-              state.levelIndex += 1;
-              const nextLevel = DUNGEON_LEVELS[state.levelIndex];
-              state.playerPos = { ...nextLevel.playerStart };
-              state.monsters = JSON.parse(JSON.stringify(nextLevel.monsters));
-              state.chests = JSON.parse(JSON.stringify(nextLevel.chests));
-              state.traps = JSON.parse(JSON.stringify(nextLevel.traps));
-              state.doors = JSON.parse(JSON.stringify(nextLevel.doors));
-              combatLog = `You descend the ancient stone stairwell deeper into darkness... Entered ${nextLevel.title}!`;
-              soundType = 'door';
+          // Auto-pickup gold, key, or potion if stepped on tile
+          const groundItem = state.items.find((i) => i.x === targetX && i.y === targetY);
+          if (groundItem) {
+            if (groundItem.type === '$' || groundItem.type === 'K' || groundItem.type === 'P') {
+              const itemIdx = state.items.findIndex((i) => i.id === groundItem.id);
+              if (itemIdx !== -1) {
+                state.items.splice(itemIdx, 1);
+                soundType = 'chest';
+                if (groundItem.type === '$') {
+                  const gVal = groundItem.value || 30;
+                  state.playerStats.gold += gVal;
+                  logMessage += ` Picked up ${groundItem.name} (+${gVal} Gold)!`;
+                } else if (groundItem.type === 'K') {
+                  state.playerStats.keys += 1;
+                  logMessage += ` Grabbed ${groundItem.name} (+1 Key)!`;
+                } else if (groundItem.type === 'P') {
+                  state.playerStats.potions += 1;
+                  logMessage += ` Picked up ${groundItem.name} (+1 Potion)!`;
+                }
+              }
             } else {
-              state.gameWon = true;
-              combatLog = 'You reach the sanctuary exit and escape the dungeon into blazing morning light!';
+              logMessage += ` You see ${groundItem.name} (${groundItem.type}) on the floor.`;
             }
+          }
+
+          // Check stairs
+          if (
+            state.floorData.stairsPos &&
+            state.floorData.stairsPos.x === targetX &&
+            state.floorData.stairsPos.y === targetY
+          ) {
+            logMessage += ' You have reached the Stairs Down (>). Choose "Descend Stairs" to delve deeper!';
           }
         }
       } else {
-        combatLog = 'You cannot walk outside the boundaries of this dungeon level.';
+        logMessage = 'Cannot move outside the bounds of the 20x20 dungeon.';
       }
     } else {
-      combatLog = `Command unrecognized: "${actionText}". Please choose an action from the list or move North/South/East/West.`;
+      logMessage = `Command "${actionText}" not recognized. Choose from the available actions or move North/South/East/West.`;
     }
   }
 
-  const turn = generateTurn(state, actionText, undefined, combatLog);
+  const turn = generateTurn(state, actionText, logMessage);
   state.turns.push(turn);
 
   return { newState: state, soundType };
 }
 
-export function formatTurnAsMarkdown(turn: GameTurn): string {
+function gainExp(state: GameState, amount: number) {
+  state.playerStats.exp += amount;
+  while (state.playerStats.exp >= state.playerStats.maxExp) {
+    state.playerStats.exp -= state.playerStats.maxExp;
+    state.playerStats.level += 1;
+    state.playerStats.maxHp += 8;
+    state.playerStats.hp = state.playerStats.maxHp;
+    state.playerStats.maxMp += 5;
+    state.playerStats.mp = state.playerStats.maxMp;
+    state.playerStats.maxExp = Math.floor(state.playerStats.maxExp * 1.5);
+  }
+}
+
+function getDirName(dx: number, dy: number): string {
+  if (dy === -1) return 'North';
+  if (dy === 1) return 'South';
+  if (dx === -1) return 'West';
+  if (dx === 1) return 'East';
+  return '';
+}
+
+// Exactly formatted string as required by the prompt
+export function formatTurnOutput(turn: GameTurn): string {
   return `### 1. MAP DISPLAY:
 \`\`\`
 ${turn.mapAscii}
 \`\`\`
 
-### 2. STATUS BOARD:
-- Player HP: [${turn.statusBoard.hp}]
-- Gold: [${turn.statusBoard.gold}]
-- Weapon: [${turn.statusBoard.weapon}]
-- Inventory: [${turn.statusBoard.inventory.length ? turn.statusBoard.inventory.join(', ') : 'Empty'}]
+### 2. STATUS & INVENTORY BOARD:
+- Location: [${turn.statusBoard.location}]
+- Stats: ${turn.statusBoard.stats}
+- Gear: ${turn.statusBoard.gear}
+- Bag: ${turn.statusBoard.bag}
 
-### 3. SCENE DESCRIPTION:
-${turn.sceneDescription}
+### 3. SCENE & COMBAT LOG:
+${turn.sceneAndCombatLog}
 
-### 4. ACTIONS:
-${turn.actions.map((act, i) => `${i + 1}. ${act}`).join('\n')}`;
+### 4. AVAILABLE ACTIONS:
+${turn.availableActions.map((act, i) => `${i + 1}. ${act}`).join('\n')}`;
 }

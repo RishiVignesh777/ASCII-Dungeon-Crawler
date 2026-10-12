@@ -9,7 +9,6 @@ import {
   VolumeX,
   RotateCcw,
   Palette,
-  ShieldAlert,
 } from 'lucide-react';
 import { soundFx } from '../audio/soundFx';
 
@@ -44,7 +43,7 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
     e.preventDefault();
     if (!inputText.trim()) return;
 
-    // Check if numeric input 1..4
+    // Check if numeric input 1..5
     const num = parseInt(inputText.trim(), 10);
     if (!isNaN(num) && num >= 1 && num <= currentActions.length) {
       onExecuteAction(currentActions[num - 1]);
@@ -54,10 +53,8 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
     setInputText('');
   };
 
-  // Keyboard controls listener (Arrow keys and WASD and 1..4)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // If user is currently typing in an input or textarea, don't hijack
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
         return;
       }
@@ -111,6 +108,12 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
             onExecuteAction(currentActions[3]);
           }
           break;
+        case '5':
+          if (currentActions[4]) {
+            e.preventDefault();
+            onExecuteAction(currentActions[4]);
+          }
+          break;
         default:
           break;
       }
@@ -148,7 +151,7 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
           <button
             type="button"
             onClick={onReset}
-            title="Restart adventure"
+            title="Restart adventure on Floor 1"
             className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-rose-400 transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -156,11 +159,11 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
         </div>
       </div>
 
-      {/* Quick Context Action Buttons */}
+      {/* Quick Action Buttons (4 to 5 options) */}
       <div className="space-y-1.5 mb-4">
         <div className="text-[11px] text-neutral-400 uppercase font-semibold flex items-center justify-between">
-          <span>Choose Next Turn Action:</span>
-          <span className="text-neutral-500 text-[10px]">Or press keys [1-4]</span>
+          <span>Available Actions for Turn:</span>
+          <span className="text-neutral-500 text-[10px]">Hotkeys [1-{currentActions.length}]</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {currentActions.map((action, idx) => (
@@ -249,7 +252,7 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="e.g. 1, North, attack, open chest..."
+                  placeholder="e.g. 1, North, attack, spell, unlock..."
                   className="w-full bg-black border border-neutral-700 rounded-lg pl-7 pr-3 py-2 text-xs text-neutral-200 placeholder:text-neutral-600 focus:outline-none focus:border-emerald-500 font-mono"
                 />
               </div>
@@ -278,7 +281,7 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
                   className={`capitalize text-[11px] px-2 py-0.5 rounded border transition-colors ${
                     theme === t
                       ? 'bg-neutral-800 text-neutral-100 border-neutral-600 font-bold'
-                      : 'bg-neutral-950 text-neutral-500 border-neutral-850 hover:text-neutral-300'
+                      : 'bg-neutral-950 text-neutral-500 border-neutral-800 hover:text-neutral-300'
                   }`}
                 >
                   {t}
