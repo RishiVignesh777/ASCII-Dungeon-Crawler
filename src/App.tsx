@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   createInitialGameState,
   executeTurnAction,
@@ -16,6 +16,7 @@ import { TurnDisplay } from './components/TurnDisplay';
 import { ControlsPanel } from './components/ControlsPanel';
 import { HistoryLog } from './components/HistoryLog';
 import { soundFx } from './audio/soundFx';
+import { useKeyboardShortcuts, KeyboardShortcut } from './hooks/useKeyboardShortcuts';
 import {
   Skull,
   Trophy,
@@ -32,6 +33,8 @@ export default function App() {
   const [colorized, setColorized] = useState(true);
   const [copiedLatest, setCopiedLatest] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showMap, setShowMap] = useState(true);
+  const [showInventory, setShowInventory] = useState(true);
 
   const latestTurn = gameState.turns[gameState.turns.length - 1];
 
@@ -83,6 +86,40 @@ export default function App() {
     setCopiedLatest(true);
     setTimeout(() => setCopiedLatest(false), 2000);
   }, [latestTurn]);
+
+  const shortcuts = useMemo<KeyboardShortcut[]>(() => {
+    const actions = latestTurn?.availableActions ?? [];
+    return [
+      { key: 'ArrowUp', description: 'Move North', handler: () => handleExecuteAction('North') },
+      { key: 'w', description: 'Move North', handler: () => handleExecuteAction('North') },
+      { key: 'ArrowDown', description: 'Move South', handler: () => handleExecuteAction('South') },
+      { key: 's', description: 'Move South', handler: () => handleExecuteAction('South') },
+      { key: 'ArrowLeft', description: 'Move West', handler: () => handleExecuteAction('West') },
+      { key: 'a', description: 'Move West', handler: () => handleExecuteAction('West') },
+      { key: 'ArrowRight', description: 'Move East', handler: () => handleExecuteAction('East') },
+      { key: 'd', description: 'Move East', handler: () => handleExecuteAction('East') },
+      { key: 'i', description: 'Toggle Inventory Display', handler: () => setShowInventory((prev) => !prev) },
+      { key: 'm', description: 'Toggle Map Display', handler: () => setShowMap((prev) => !prev) },
+      { key: 'p', description: 'Use Health/Mana Potion', handler: handleUsePotion },
+      { key: 'r', description: 'Rest and catch breath', handler: () => handleExecuteAction('Rest') },
+      { key: '?', description: 'Toggle Help Guide', handler: () => setShowHelp((prev) => !prev), allowInModal: true },
+      { key: 'h', description: 'Toggle Help Guide', handler: () => setShowHelp((prev) => !prev), allowInModal: true },
+      { key: 'Escape', description: 'Close Modal', handler: () => setShowHelp(false), allowInModal: true },
+      ...[0, 1, 2, 3, 4]
+        .filter((idx) => Boolean(actions[idx]))
+        .map((idx) => ({
+          key: String(idx + 1),
+          description: `Execute Action ${idx + 1}`,
+          handler: () => handleExecuteAction(actions[idx]),
+        })),
+    ];
+  }, [latestTurn, handleExecuteAction, handleUsePotion]);
+
+  useKeyboardShortcuts({
+    enabled: !gameState.gameOver && !gameState.gameWon,
+    isModalOpen: showHelp,
+    shortcuts,
+  });
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-mono selection:bg-emerald-500/30">
@@ -146,6 +183,8 @@ export default function App() {
             colorized={colorized}
             onTileClick={handleTileClick}
             playerPos={gameState.playerPos}
+            isVisible={showMap}
+            onToggleVisible={() => setShowMap((prev) => !prev)}
           />
 
           <StatusBoard
@@ -155,6 +194,8 @@ export default function App() {
             bagText={latestTurn.statusBoard.bag}
             raw={latestTurn.statusBoard.raw}
             onUsePotion={handleUsePotion}
+            isVisible={showInventory}
+            onToggleVisible={() => setShowInventory((prev) => !prev)}
           />
         </section>
 
@@ -309,10 +350,11 @@ export default function App() {
               </div>
 
               <div className="pt-2 border-t border-neutral-800">
-                <strong className="text-emerald-400 block mb-1">Controls:</strong>
+                <strong className="text-emerald-400 block mb-1">Controls &amp; Shortcuts:</strong>
                 <p className="text-neutral-400">
-                  - Keyboard: WASD / Arrow Keys to move, Keys [1] through [5] for actions.<br />
-                  - Adjacent tiles can be clicked directly.<br />
+                  - Movement: WASD / Arrow Keys, or click any adjacent tile.<br />
+                  - Quick Actions: Keys [1] through [5] for listed turn choices.<br />
+                  - Shortcuts: [I] Toggle Inventory, [M] Toggle Map, [P] Drink Potion, [R] Rest, [?]/[H] Help.<br />
                   - Type any command into the prompt (e.g. &quot;attack goblin&quot;, &quot;unlock door&quot;, &quot;descend stairs&quot;).
                 </p>
               </div>

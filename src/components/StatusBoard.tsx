@@ -22,6 +22,8 @@ interface StatusBoardProps {
     keyItems: string[];
   };
   onUsePotion?: () => void;
+  isVisible?: boolean;
+  onToggleVisible?: () => void;
 }
 
 export const StatusBoard: React.FC<StatusBoardProps> = ({
@@ -31,6 +33,8 @@ export const StatusBoard: React.FC<StatusBoardProps> = ({
   bagText,
   raw,
   onUsePotion,
+  isVisible = true,
+  onToggleVisible,
 }) => {
   const hpRatio = raw.maxHp > 0 ? Math.max(0, Math.min(100, (raw.hp / raw.maxHp) * 100)) : 0;
   const mpRatio = raw.maxMp > 0 ? Math.max(0, Math.min(100, (raw.mp / raw.maxMp) * 100)) : 0;
@@ -38,16 +42,31 @@ export const StatusBoard: React.FC<StatusBoardProps> = ({
 
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-950/90 p-4 font-mono shadow-md">
-      <div className="flex items-center justify-between border-b border-neutral-800 pb-2 mb-3 text-xs tracking-wider uppercase font-semibold text-neutral-400">
+      <div className={`flex items-center justify-between text-xs tracking-wider uppercase font-semibold text-neutral-400 ${isVisible ? 'border-b border-neutral-800 pb-2 mb-3' : ''}`}>
         <span className="flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
           2. STATUS & INVENTORY BOARD
         </span>
-        <span className="text-emerald-400 font-bold bg-emerald-950/70 border border-emerald-800/80 px-2 py-0.5 rounded text-[11px]">
-          {location}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-emerald-400 font-bold bg-emerald-950/70 border border-emerald-800/80 px-2 py-0.5 rounded text-[11px]">
+            {location}
+          </span>
+          {onToggleVisible && (
+            <button
+              type="button"
+              onClick={onToggleVisible}
+              title="Toggle Inventory & Status Board (Shortcut: I)"
+              className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-neutral-800 bg-neutral-900 hover:border-emerald-500/60 text-neutral-300 hover:text-emerald-300 transition-colors cursor-pointer"
+            >
+              <kbd className="text-emerald-400 font-bold">I</kbd>
+              <span>{isVisible ? 'Hide' : 'Show'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
+      {isVisible && (
+        <>
       {/* Structured Text representation */}
       <div className="bg-black/70 rounded-lg p-3 border border-neutral-800/80 text-xs text-neutral-300 space-y-1 mb-3">
         <div>
@@ -144,12 +163,18 @@ export const StatusBoard: React.FC<StatusBoardProps> = ({
           <button
             type="button"
             onClick={onUsePotion}
-            className="flex items-center gap-1 text-xs px-2.5 py-1 bg-rose-950/60 hover:bg-rose-900/80 border border-rose-700/60 text-rose-300 rounded transition-colors cursor-pointer"
+            title="Use Health/Mana Potion (Shortcut: P)"
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1 bg-rose-950/60 hover:bg-rose-900/80 border border-rose-700/60 text-rose-300 rounded transition-colors cursor-pointer"
           >
-            🧪 Drink Potion ({raw.potions})
+            <kbd className="px-1 py-0.2 text-[10px] bg-rose-900/80 border border-rose-700 text-rose-200 rounded font-bold">
+              P
+            </kbd>
+            <span>Drink Potion ({raw.potions})</span>
           </button>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 };

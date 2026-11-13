@@ -6,6 +6,8 @@ interface AsciiMapProps {
   colorized: boolean;
   onTileClick?: (x: number, y: number) => void;
   playerPos: { x: number; y: number };
+  isVisible?: boolean;
+  onToggleVisible?: () => void;
 }
 
 export const AsciiMap: React.FC<AsciiMapProps> = ({
@@ -14,6 +16,8 @@ export const AsciiMap: React.FC<AsciiMapProps> = ({
   colorized,
   onTileClick,
   playerPos,
+  isVisible = true,
+  onToggleVisible,
 }) => {
   const lines = mapAscii.split('\n');
 
@@ -75,18 +79,33 @@ export const AsciiMap: React.FC<AsciiMapProps> = ({
 
   return (
     <div className={`relative rounded-xl border bg-neutral-950/95 p-3.5 font-mono ${getThemeBorder()}`}>
-      <div className="flex items-center justify-between border-b border-neutral-800 pb-2 mb-2 text-xs uppercase tracking-wider font-semibold text-neutral-400">
+      <div className={`flex items-center justify-between text-xs uppercase tracking-wider font-semibold text-neutral-400 ${isVisible ? 'border-b border-neutral-800 pb-2 mb-2' : ''}`}>
         <span className="flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
           1. MAP DISPLAY (20x20 GRID)
         </span>
-        <span className="text-neutral-500 font-mono text-[11px]">
-          POS: ({playerPos.x}, {playerPos.y})
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-neutral-500 font-mono text-[11px]">
+            POS: ({playerPos.x}, {playerPos.y})
+          </span>
+          {onToggleVisible && (
+            <button
+              type="button"
+              onClick={onToggleVisible}
+              title="Toggle Map Display (Shortcut: M)"
+              className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-neutral-800 bg-neutral-900 hover:border-emerald-500/60 text-neutral-300 hover:text-emerald-300 transition-colors cursor-pointer"
+            >
+              <kbd className="text-emerald-400 font-bold">M</kbd>
+              <span>{isVisible ? 'Hide' : 'Show'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* 20x20 Grid Display */}
-      <div className="flex justify-center items-center py-1 overflow-x-auto">
+      {isVisible && (
+        <>
+          {/* 20x20 Grid Display */}
+          <div className="flex justify-center items-center py-1 overflow-x-auto">
         <div className="inline-block bg-black p-2 md:p-3 rounded-lg border border-neutral-800/90 shadow-inner font-mono text-xs md:text-sm leading-none tracking-widest select-none">
           {lines.map((line, y) => (
             <div key={y} className="flex whitespace-pre">
@@ -168,6 +187,8 @@ export const AsciiMap: React.FC<AsciiMapProps> = ({
           <span className="text-neutral-300">Orc/Dragon</span>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

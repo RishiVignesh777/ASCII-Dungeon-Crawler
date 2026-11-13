@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   ArrowUp,
   ArrowDown,
@@ -52,76 +52,6 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
     }
     setInputText('');
   };
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
-        return;
-      }
-
-      switch (e.key) {
-        case 'ArrowUp':
-        case 'w':
-        case 'W':
-          e.preventDefault();
-          onExecuteAction('North');
-          break;
-        case 'ArrowDown':
-        case 's':
-        case 'S':
-          e.preventDefault();
-          onExecuteAction('South');
-          break;
-        case 'ArrowLeft':
-        case 'a':
-        case 'A':
-          e.preventDefault();
-          onExecuteAction('West');
-          break;
-        case 'ArrowRight':
-        case 'd':
-        case 'D':
-          e.preventDefault();
-          onExecuteAction('East');
-          break;
-        case '1':
-          if (currentActions[0]) {
-            e.preventDefault();
-            onExecuteAction(currentActions[0]);
-          }
-          break;
-        case '2':
-          if (currentActions[1]) {
-            e.preventDefault();
-            onExecuteAction(currentActions[1]);
-          }
-          break;
-        case '3':
-          if (currentActions[2]) {
-            e.preventDefault();
-            onExecuteAction(currentActions[2]);
-          }
-          break;
-        case '4':
-          if (currentActions[3]) {
-            e.preventDefault();
-            onExecuteAction(currentActions[3]);
-          }
-          break;
-        case '5':
-          if (currentActions[4]) {
-            e.preventDefault();
-            onExecuteAction(currentActions[4]);
-          }
-          break;
-        default:
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentActions, onExecuteAction]);
 
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-950/90 p-4 font-mono shadow-md">
@@ -288,6 +218,26 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Keyboard Shortcuts Reference */}
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-neutral-800/80 text-[10px] text-neutral-400">
+            <span className="text-neutral-500 uppercase font-semibold">Shortcuts:</span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1 py-0.5 bg-neutral-900 border border-neutral-700 text-emerald-400 rounded font-bold">I</kbd> Inventory
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1 py-0.5 bg-neutral-900 border border-neutral-700 text-emerald-400 rounded font-bold">M</kbd> Map
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1 py-0.5 bg-neutral-900 border border-neutral-700 text-rose-400 rounded font-bold">P</kbd> Potion
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1 py-0.5 bg-neutral-900 border border-neutral-700 text-amber-400 rounded font-bold">R</kbd> Rest
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1 py-0.5 bg-neutral-900 border border-neutral-700 text-neutral-300 rounded font-bold">?</kbd> Help
+            </span>
           </div>
         </div>
       </div>
